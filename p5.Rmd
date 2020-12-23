@@ -1,0 +1,248 @@
+---
+title: Four ways to gain installation of andriod application in terms of rating, review,
+  price and category
+author: "songyuan luo"
+date: "22 December 2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+bibliography: REF.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rms)
+library(janitor)
+library(tidyverse)
+library(haven)
+library(dplyr)
+library(ggplot2)
+library(tidybayes)
+library(brms)
+```
+
+Code and data supporting this analysis is available at: https://github.com/songyuan-l/304ps5
+
+# Keywords: 
+
+Andriod, installation number, google play store, brm
+
+# Abstract
+
+Several UOFT students decide to establish a startup company that design applications based on the Andriod operating system. Before we start to code a program, we want to decide what kind of application to build. Therefore, we will build a brm model to predict category, rating, reviews, size, type which will affect the popularity of the applications in the market.According to our model,rating,review, price and category has a major impact on the installation number of applications, so we have four method to increase the installation number.
+
+
+# Introduction
+
+For the newly established company, the first and also the most important task is to figure out which kind of product we need to build. Nowadays, almost everyone has mobile devices, so the market for a mobile app is pretty large. Since we have a limited labor force, we have to choose which operating system will we build our application on. Andriod and IOS are the most popular operating system. Andriod OS shared 85% of the operating system market, while IOS has 13% of the market. Compare to Andriod and IOS, Android os has more consumers than IOS.(@OS) Also, the apple store's application review mechanism is more strict than the play store. Therefore we decide to develop an android application first.
+There are many popular apps on the play store such as TikTok, Spotify, Facebook, etc. Our second task is to find out what kind of application we need to develop. Hence we find a dataset of Google Play Store Apps from Kaggle(@kaggle_data). As we are a newly established company, we don't care about how much profit we earn, we only care about how many people are willing to use our application.So the installation number will indicate if the application is popular or not.Also, if we want to find an investor, the number of the user plays a significant role in the level of investment. 
+
+In order to find the causal inference,We will fit a brm model to predict the influence of the APP's rating,review, price and category on the installation number.We will determine whether those factors have a positive or negative impact on the the installation number.By the model result, we will get some methods to increase our app'S installation number.
+
+# data
+
+The data in use is from the Google Play Store Apps from Kaggle(@kaggle_data).
+In this study, we aim to find out factors that influence the popularity of the application. More specifically, what is the influence of different features on the installation number? In our case, we use these data to predict how popular the applications are: category, rating, reviews, size, type.
+
+"Installs" is the total installation number of the application on the google play store
+"Category"  shows which kind of application it is. for example BUSINESS, photograph, etc
+"Rating" is the overall review rate of the application on the google play store
+"Reviews" is the total number of reviewers of the application on the google play store
+"Type" shows the application is free or not 
+
+Among these predictor variables, we filter out all non-responses. For the type variable, we denote the 'free' as '0', and paid as '1'.
+
+The dependent variable for this study is set as the installation number. In order to study the influence on the installation number, we mutate the installation number "Installs" to numeric, for example,"1,000,000+" is convert to  1000000.
+Lastly, we removed all missing values.
+
+
+
+```{r Data , echo=FALSE,message=FALSE, include=FALSE}
+# Load the data dictionary and the raw data 
+raw_data <- read_csv("googleplaystore.csv")
+raw_data <- labelled::to_factor(raw_data)
+# exclude those rows with type =0,since type is categorical data
+raw_data<-subset(raw_data,raw_data$Type!=0)
+#cleaning our data
+#select Category,Rating,Reviews,Installs,Type 
+#convert "type" from categorical data to binary
+#convert "Installs" from categorical data to "install.numb"-numeric data
+#exclude all rows with missing value
+popular_data<- raw_data%>% select(Category,Rating,Reviews,Installs,Type) %>%mutate(pay = case_when(
+    Type=="Paid" ~ 1,
+    Type=="Free" ~ 0
+    )
+    )%>%
+  mutate(install.numb = case_when(
+      Installs=="1,000,000+" ~ "1000000",
+      Installs=="10,000,000+" ~"10000000",
+      Installs=="100,000+" ~"100000",
+      Installs=="10,000+" ~"10000",
+      Installs=="1,000+" ~ "1000",
+      Installs=="5,000,000+" ~ "5000000",
+      Installs=="100+" ~ "100",
+      Installs=="500,000+" ~ '500000',
+      Installs=="50,000+" ~ '50000',
+      Installs=="5,000+" ~ '5000',
+      Installs=="	100,000,000+" ~ 	'100000000',
+      Installs=="10+" ~ '10',
+      Installs=="500+" ~ '500',
+      Installs=="50,000,000+" ~ '50000000',
+      Installs=="50+" ~ '50',
+      Installs=="5+" ~ '5',
+      Installs=="500,000,000+" ~ '500000000',
+      Installs== "1+"~ '1',
+      Installs=="1,000,000,000+" ~ '1000000000'
+      ))%>%filter(Rating!="NaN")%>%filter(install.numb!="	NA")%>%arrange(as.numeric(install.numb))
+```
+
+we will have plots by using ggplot.@ggplot2
+
+```{r echo=FALSE}
+# summerise the category column ,and see how many apps are in each category
+cate<- popular_data %>% group_by(Category)%>% 
+                              summarise (n = n()) %>% 
+                              arrange(desc(n))
+# exclude some very least popular category
+percent <- cate%>%mutate (percent = round(n/sum(n),2))%>%
+                              filter(percent>0.01)
+app_cate<-cate%>%select(Category)
+# plot the pie chart of the categoris
+ggplot(percent, aes(x = "", y = percent, fill = Category)) +
+geom_bar(stat = "identity", color = "white") +
+coord_polar("y", start = 0)+
+theme_void()+
+  labs(fill = "category", 
+        title = "Figure 1", 
+        caption = "percentage of each category") 
+
+```
+
+
+From figure 1, we can see that "FAMILY' is the largest category in the play store. It occupies almost a quarter of the pie chart. "Game" and "TOOLS" are the second and third largest category, which take almost  ???  of the pie chart each. Most of the other categories take around 1/30 of the pie chart. So most developers worked on the family, game, and tools kind of application, and there must be many competition and repetition in these three categories.
+
+
+```{r echo=FALSE}
+#plot  the histogram of the rating data, and add labs
+#since the result plot is not very well in terms of shape, so we apply a log10 on  the data
+ggplot(data = popular_data,aes(x =Rating))+
+geom_bar(position = "dodge",color="black") + scale_y_log10()+
+  labs( 
+        title = "Figure 2 overall review rate on different applications ", 
+        caption = "the rate is from 0.0 to 5.0") 
+```
+
+From Figure 2, we can see the histogram plot is a left-skewed distribution. The peak is around 4.3. The mean of the rating is lower than the median. Most apps are in a good review rate.
+
+
+```{r echo=FALSE}
+#plot the boxplot of reviews
+ggplot(data = popular_data,aes(x =Reviews))+
+geom_boxplot(outlier.colour="red", outlier.shape=8,
+                outlier.size=4)+
+  labs( 
+        title = "Figure 3 : review number on different applications ") 
+```
+
+From figure 3, we can see that most of the applications' review numbers are lower than 10^7. 
+
+```{r echo=FALSE}
+#plot the histgram of install.numb, add the type to be the fill
+#since the result plot is not very well in terms of shape, so we apply a log10 on  the data
+ggplot(data = popular_data,aes(x = install.numb , y = ..count.., fill=Type)) + 
+    geom_bar(stat = "count", position='dodge') + 
+    xlab('') + 
+    ylab('Count') + 
+    theme_bw()+
+    scale_y_log10()+ 
+    theme(plot.title = element_text(hjust = 0.5), legend.position="bottom")+
+  labs( 
+        title = "Figure 4 the count of installation numbers") 
+```
+From figure 4, the plot seems a normal distribution.The free application gets more installation numbers than those paid apps. Also, almost all applications with an installation number of more than 5000000 are free. So, free applications will have more users.
+
+
+
+
+# model
+
+The purpose of the model is to find the influencing factors on the installation number and their effect.In order to find out the causality of the installation number, we fitted a Bayesian Generalized  Multilevel Model on our dataset to verify whether those influencing factors have siginfcant impact.As predictors we choose the rating, reviews,pay, and category.Since the dependent variable is the installation number, we choose gaussian model.
+
+$$install.numb \~ Normal(\mu_i,\sigma_i) $$
+$$\mu_i=\beta_0+\beta_1*Rating_i+\beta_2*Reviews+\beta_3*pay+\beta_4*category$$
+
+The $\beta_0$ is the intercept
+The $\beta$ terms are the coeffcients. And they are free parameters of the model.
+
+The model is fitted with the function brm from the @brms package.
+
+Bayesian  model consists of a prior distribution function 
+$$P(\theta|D)=\frac{P(\theta)\times P(D|\theta)}{ \int P(\theta^{'}\times P(D|\theta^{'})) \,d\theta^{'} }$$
+$\theta$ is a vector of parameter values of the model.
+
+
+```{r echo=FALSE,message=FALSE, include=FALSE }
+#fit brm model
+fit_model<-brm(as.numeric(install.numb)~Rating+Reviews+pay+Category,"gaussian",
+                        data =popular_data)
+
+```
+
+# Result
+
+
+Table 5
+
+```{r}
+summary(fit_model)
+```
+
+Table 5 shows parameter estimates and their corresponding analysis($\beta_i$). The variable Intercept refers to the coefficient $\beta_0$ which is the mean of the reference level.
+
+In terms of rating, it has most significant impact on installation numbers. If the review rate increase the installation number also increases dramatically. This is reasonable. When the application's review rate increase, google play store tend to put the application on the top of the searching list. Most people are willing to installation tp 3 apps from their search list, and they will not scroll down to install other apps. Also, if the review rate is very high, the google play store will recommend this app on the main page.
+
+In terms of reviews, it has a positive impact on the installation number, but not very tremendous compare to the rating. The possible reason is that more feedback would give other users a better idea of what the app is.
+
+In terms of payment, it has a huge negative on the installation number. People tend to use free apps. If there is a demand for a certain kind of APP, people will prefer a free one instead of a paid one. If the paid one is the only App in the google play store, many people choose to not install the App when the demand is elastic. The payment creates a barrier to stop customers to use it.
+
+In terms of category, some categories have a positive impact on the installation number, such as PHOTOGRAPHY, TRAVEL_AND_LOCAL, and COMMUNICATION. These categories are highly related to most people's life. People will use this kind of Apps every day. On the other hand, there are some categories that have a negative impact on the installation number, such as COMICS, BEAUTY, and FINANCE. Those apps have limited target customers, and some of them are professional.
+
+# Discussion
+
+In this study, we explore the influencing factors of the installation number.
+For the application we are trying to develop, we want to have the installation number as high as possible. So, we need to improve our App's quality so that people will give a high rate. Also, we can invite some people to test our APP and write their use experience comments. For our App, we need to set it free in order to have more customers or give customers a free trial. Finally, when we are deciding which kind of App to develop, we need to focus on the apps that the majority of people will use every day.
+
+# weakness
+
+The data is biased and not very comprehensive. It only contains the application data from the google play store. Different OS systems and platforms might have different target customers. The result from our model might not fit the situation in which we develop an application based on IOS. Also, the data is gathered in 2018 which is not up to date. Some applications were popular back then, but not 2020. The raw data contains the variable "size" which has information about how much storage will the APP use in the cell phone memory. This is also a very important factor that affects the installation number since most phones have limited storage. However, the "size" contains too many observations of "Varies with the device". It covert the size data from numeric to categorical. It is hard to manipulate the data. So I did not choose "size" as a factor. Furthermore, there will be some missing data.  It will affect us analyzing the result.
+
+
+
+# The next step
+
+We could gather the most up-to-date data that contains information about APPs on both Android and IOS. For observations of the "Varies with the device" question, we could list the type of phones with their installation size. Also, we could fit other causal inference models to see the differences.
+
+
+# Reference
+
+The data source is : @kaggle_data
+
+
+ @R-base
+
+ @R-knitr
+
+
+ @OS
+
+ @R-rmarkdown
+
+ @rms
+
+ @janitor
+
+@ggplot2
+
+@brms
+
